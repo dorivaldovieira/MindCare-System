@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "A patient or client of the clinic",
+      "type": "object",
+      "properties": {
+        "cpf": { "type": "string", "description": "CPF document number" },
+        "rg": { "type": "string", "description": "RG document number" },
+        "name": { "type": "string", "description": "Full name of the client" },
+        "address": { "type": "string", "description": "Home address" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "contact": { "type": "string", "description": "Emergency contact name" },
+        "cid": { "type": "string", "description": "ICD code" },
+        "father": { "type": "string", "description": "Father's name" },
+        "mother": { "type": "string", "description": "Mother's name" },
+        "clinicalHistory": { "type": "string", "description": "Clinical history notes" },
+        "status": { "type": "string", "enum": ["Ativo", "Inativo"], "description": "Current status of the client" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["cpf", "name", "createdAt", "updatedAt"]
+    },
+    "Professional": {
+      "title": "Professional",
+      "description": "A healthcare professional working at the clinic",
+      "type": "object",
+      "properties": {
+        "cpf": { "type": "string", "description": "CPF document number" },
+        "registerNumber": { "type": "string", "description": "Professional registration number" },
+        "name": { "type": "string", "description": "Full name of the professional" },
+        "specialty": { "type": "string", "description": "Professional specialty" },
+        "email": { "type": "string", "description": "Email address" },
+        "address": { "type": "string", "description": "Home address" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["cpf", "registerNumber", "name", "specialty", "email", "createdAt", "updatedAt"]
+    },
+    "ServiceRecord": {
+      "title": "ServiceRecord",
+      "description": "A record of a clinical session",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string", "description": "Reference to the client" },
+        "clientName": { "type": "string", "description": "Name of the client" },
+        "professionalId": { "type": "string", "description": "Reference to the professional" },
+        "professionalName": { "type": "string", "description": "Name of the professional" },
+        "date": { "type": "string", "description": "Date of the session" },
+        "time": { "type": "string", "description": "Time of the session" },
+        "cid": { "type": "string", "description": "ICD code for the session" },
+        "evolution": { "type": "string", "description": "Clinical evolution notes" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["clientId", "clientName", "professionalId", "professionalName", "date", "time", "evolution", "createdAt"]
+    },
+    "Attachment": {
+      "title": "Attachment",
+      "description": "A file attached to a client's record",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string", "description": "Reference to the client" },
+        "fileName": { "type": "string", "description": "Name of the file" },
+        "fileSize": { "type": "number", "description": "Size of the file in bytes" },
+        "fileType": { "type": "string", "description": "MIME type of the file" },
+        "fileUrl": { "type": "string", "description": "URL to the file in storage" },
+        "uploadedAt": { "type": "string", "format": "date-time", "description": "Upload timestamp" }
+      },
+      "required": ["clientId", "fileName", "fileUrl", "uploadedAt"]
+    }
+  },
+  "firestore": {
+    "clients": { "schema": "Client", "description": "Collection of clients" },
+    "professionals": { "schema": "Professional", "description": "Collection of professionals" },
+    "service_records": { "schema": "ServiceRecord", "description": "Collection of service records" },
+    "attachments": { "schema": "Attachment", "description": "Collection of file attachments" }
+  }
+}

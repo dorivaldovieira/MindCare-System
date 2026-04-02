@@ -1,0 +1,173 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: clients
+    // Document ID: auto-generated
+    // Fields:
+    //   - cpf: string (required)
+    //   - rg: string (optional)
+    //   - name: string (required)
+    //   - address: string (optional)
+    //   - phone: string (optional)
+    //   - contact: string (optional)
+    //   - cid: string (optional)
+    //   - father: string (optional)
+    //   - mother: string (optional)
+    //   - clinicalHistory: string (optional)
+    //   - status: string (optional, enum: ["Ativo", "Inativo"])
+    //   - createdAt: timestamp (required)
+    //   - updatedAt: timestamp (required)
+    //
+    // Collection: professionals
+    // Document ID: auto-generated
+    // Fields:
+    //   - cpf: string (required)
+    //   - registerNumber: string (required)
+    //   - name: string (required)
+    //   - specialty: string (required)
+    //   - email: string (required)
+    //   - address: string (optional)
+    //   - phone: string (optional)
+    //   - createdAt: timestamp (required)
+    //   - updatedAt: timestamp (required)
+    //
+    // Collection: service_records
+    // Document ID: auto-generated
+    // Fields:
+    //   - clientId: string (required)
+    //   - clientName: string (required)
+    //   - professionalId: string (required)
+    //   - professionalName: string (required)
+    //   - date: string (required)
+    //   - time: string (required)
+    //   - cid: string (optional)
+    //   - evolution: string (required)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: attachments
+    // Document ID: auto-generated
+    // Fields:
+    //   - clientId: string (required)
+    //   - fileName: string (required)
+    //   - fileSize: number (optional)
+    //   - fileType: string (optional)
+    //   - fileUrl: string (required)
+    //   - uploadedAt: timestamp (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          request.auth.token.email == "dorivaldosv32@gmail.com");
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidClient(data) {
+      return hasRequiredFields(['cpf', 'name', 'createdAt']) &&
+             data.cpf is string && data.cpf.size() >= 11 && data.cpf.size() <= 14 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidProfessional(data) {
+      return hasRequiredFields(['cpf', 'registerNumber', 'name', 'specialty', 'email', 'createdAt']) &&
+             data.cpf is string && data.cpf.size() >= 11 && data.cpf.size() <= 14 &&
+             data.registerNumber is string && data.registerNumber.size() > 0 && data.registerNumber.size() < 20 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.specialty is string && data.specialty.size() > 0 &&
+             isValidEmail(data.email) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidServiceRecord(data) {
+      return hasRequiredFields(['clientId', 'clientName', 'professionalId', 'professionalName', 'date', 'time', 'evolution', 'createdAt']) &&
+             data.clientId is string && data.clientName is string &&
+             data.professionalId is string && data.professionalName is string &&
+             data.date is string && data.time is string &&
+             data.evolution is string && data.evolution.size() > 0 && data.evolution.size() < 10000 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidAttachment(data) {
+      return hasRequiredFields(['clientId', 'fileName', 'fileUrl', 'uploadedAt']) &&
+             data.clientId is string &&
+             data.fileName is string && data.fileName.size() > 0 && data.fileName.size() < 255 &&
+             isValidUrl(data.fileUrl) &&
+             data.uploadedAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId && !request.resource.data.keys().contains('role'));
+    }
+
+    match /clients/{clientId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidClient(request.resource.data);
+      allow update: if isAuthenticated() && isValidClient(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /professionals/{professionalId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidProfessional(request.resource.data);
+      allow update: if isAuthenticated() && isValidProfessional(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /service_records/{recordId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidServiceRecord(request.resource.data);
+      allow update: if isAuthenticated() && isValidServiceRecord(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /attachments/{attachmentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidAttachment(request.resource.data);
+      allow update: if isAuthenticated() && isValidAttachment(request.resource.data);
+      allow delete: if isAuthenticated(); // Allow deletion of attachments by staff
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
