@@ -11,6 +11,7 @@ import {
   LogOut,
   Activity,
   ChevronRight,
+  Menu,
   Mail,
   Lock,
   Eye,
@@ -35,7 +36,8 @@ import {
   Clock,
   ClipboardList,
   History,
-  Trash2
+  Trash2,
+  Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -82,6 +84,7 @@ export default function MindCareApp() {
   const [user, setUser] = React.useState<FirebaseUser | null>(null);
   const [isAuthReady, setIsAuthReady] = React.useState(false);
   const [activeView, setActiveView] = React.useState<View>('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
   const [editingProfessional, setEditingProfessional] = React.useState<any>(null);
   const [editingClient, setEditingClient] = React.useState<any>(null);
 
@@ -141,21 +144,48 @@ export default function MindCareApp() {
   ];
 
   return (
-    <div className="flex h-screen bg-[#0F172A] text-slate-200 font-sans overflow-hidden">
+    <div className="flex h-screen bg-[#0F172A] text-slate-200 font-sans overflow-hidden relative">
+      {/* Mobile Sidebar Overlay */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Sidebar */}
-      <aside className="w-64 bg-[#111827] border-r border-slate-800 flex flex-col">
-        <div className="p-6 flex items-center gap-3">
-          <div className="bg-emerald-500/20 p-2 rounded-lg">
-            <Activity className="w-6 h-6 text-emerald-500" />
+      <aside className={cn(
+        "fixed inset-y-0 left-0 w-64 bg-[#111827] border-r border-slate-800 flex flex-col z-50 transition-transform duration-300 lg:relative lg:translate-x-0",
+        isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="p-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-500/20 p-2 rounded-lg">
+              <Activity className="w-6 h-6 text-emerald-500" />
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-white">MindCare</h1>
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-white">MindCare</h1>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-2 text-slate-400 hover:text-white lg:hidden"
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
 
-        <nav className="flex-1 px-4 py-4 space-y-2">
+        <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
           {menuItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveView(item.id as View)}
+              onClick={() => {
+                setActiveView(item.id as View);
+                setIsSidebarOpen(false);
+              }}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
                 activeView === item.id 
@@ -184,20 +214,29 @@ export default function MindCareApp() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-auto">
+      <main className="flex-1 flex flex-col overflow-auto w-full">
         {/* Top Bar */}
-        <header className="h-16 border-b border-slate-800 flex items-center justify-end px-8 gap-4 bg-[#111827]/50 backdrop-blur-sm sticky top-0 z-10">
-          <div className="flex flex-col items-end">
-            <span className="text-sm font-semibold text-white">Dr. Ricardo Silva</span>
-            <span className="text-xs text-slate-400">Administrador</span>
-          </div>
-          <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm border-2 border-emerald-500/20">
-            RS
+        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-4 lg:px-8 gap-4 bg-[#111827]/50 backdrop-blur-sm sticky top-0 z-10">
+          <button 
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 text-slate-400 hover:text-white lg:hidden"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          
+          <div className="flex items-center gap-4 ml-auto">
+            <div className="flex flex-col items-end hidden sm:flex">
+              <span className="text-sm font-semibold text-white">Dr. Ricardo Silva</span>
+              <span className="text-xs text-slate-400">Administrador</span>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm border-2 border-emerald-500/20">
+              RS
+            </div>
           </div>
         </header>
 
         {/* View Content */}
-        <div className="p-8">
+        <div className="p-4 lg:p-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
@@ -395,7 +434,10 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Search and List Section */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className={cn(
+          "lg:col-span-1 space-y-6",
+          selectedClient ? "hidden lg:block" : "block"
+        )}>
           <div className="relative group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
             <input 
@@ -440,7 +482,10 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
         </div>
 
         {/* Details and Upload Section */}
-        <div className="lg:col-span-2">
+        <div className={cn(
+          "lg:col-span-2",
+          !selectedClient ? "hidden lg:block" : "block"
+        )}>
           <AnimatePresence mode="wait">
             {selectedClient ? (
               <motion.div
@@ -448,17 +493,23 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-xl space-y-8"
+                className="bg-[#111827] border border-slate-800 rounded-3xl p-4 sm:p-8 shadow-xl space-y-8"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-500">
-                      <User className="w-8 h-8" />
+                    <button 
+                      onClick={() => setSelectedClient(null)}
+                      className="p-2 -ml-2 text-slate-400 hover:text-white lg:hidden"
+                    >
+                      <ChevronRight className="w-6 h-6 rotate-180" />
+                    </button>
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+                      <User className="w-6 h-6 sm:w-8 sm:h-8" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold text-white">{selectedClient.name}</h3>
+                      <h3 className="text-xl sm:text-2xl font-bold text-white truncate max-w-[200px] sm:max-w-none">{selectedClient.name}</h3>
                       <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs font-mono text-slate-500">ID: {selectedClient.id}</span>
+                        <span className="text-[10px] sm:text-xs font-mono text-slate-500">ID: {selectedClient.id}</span>
                         <span className={cn(
                           "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
                           selectedClient.status === 'Ativo' ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
@@ -541,9 +592,30 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
                                 <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                            <p className="text-sm text-slate-300 leading-relaxed">
-                              {entry.notes}
+                            <p className="text-sm text-slate-300 leading-relaxed line-clamp-3">
+                              {entry.evolution}
                             </p>
+
+                            {entry.files && entry.files.length > 0 && (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {entry.files.map((file: any, fIdx: number) => (
+                                  <a
+                                    key={fIdx}
+                                    href={file.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 transition-colors group"
+                                  >
+                                    {file.type.includes('image') ? (
+                                      <ImageIcon className="w-3 h-3 text-blue-400" />
+                                    ) : (
+                                      <File className="w-3 h-3 text-orange-400" />
+                                    )}
+                                    <span className="text-[10px] text-slate-400 group-hover:text-white truncate max-w-[100px]">{file.name}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))
@@ -588,17 +660,22 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
                           animate={{ opacity: 1, scale: 1 }}
                           className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800 rounded-2xl group"
                         >
-                          <div className="flex items-center gap-3 overflow-hidden">
+                          <a 
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 overflow-hidden flex-1"
+                          >
                             {file.type.includes('image') ? (
                               <ImageIcon className="w-8 h-8 text-blue-400 shrink-0" />
                             ) : (
                               <File className="w-8 h-8 text-orange-400 shrink-0" />
                             )}
                             <div className="overflow-hidden">
-                              <p className="text-sm font-medium text-white truncate">{file.name}</p>
+                              <p className="text-sm font-medium text-white truncate group-hover:text-emerald-500 transition-colors">{file.name}</p>
                               <p className="text-[10px] text-slate-500 uppercase">{(file.size / 1024).toFixed(1)} KB</p>
                             </div>
-                          </div>
+                          </a>
                           <button 
                             onClick={() => removeFile(idx)}
                             className="p-2 text-slate-600 hover:text-red-400 transition-colors"
@@ -704,7 +781,7 @@ function ClientFormView({ client, onCancel }: { client?: any, onCancel: () => vo
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-xl space-y-8">
+      <form onSubmit={handleSubmit} className="bg-[#111827] border border-slate-800 rounded-3xl p-4 sm:p-8 shadow-xl space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* CPF */}
           <div className="space-y-2">
@@ -966,7 +1043,7 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-xl space-y-8">
+      <form onSubmit={handleSubmit} className="bg-[#111827] border border-slate-800 rounded-3xl p-4 sm:p-8 shadow-xl space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* CPF */}
           <div className="space-y-2">
@@ -1129,6 +1206,11 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
   const [selectedProfessional, setSelectedProfessional] = useState('');
   const [clients, setClients] = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<any[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -1149,6 +1231,27 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
     };
   }, []);
 
+  React.useEffect(() => {
+    if (!selectedClient) {
+      setHistory([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'service_records'),
+      where('clientId', '==', selectedClient),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'service_records');
+    });
+
+    return () => unsubscribe();
+  }, [selectedClient]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -1162,9 +1265,19 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
         professionalId: selectedProfessional,
         professionalName: professional?.name || 'Unknown',
         ...formData,
+        files: attachedFiles,
         createdAt: serverTimestamp(),
       });
-      onCancel();
+      // Clear evolution and files but keep client/pro selected
+      setFormData(prev => ({
+        ...prev,
+        evolution: '',
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }));
+      setAttachedFiles([]);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'service_records');
     } finally {
@@ -1175,6 +1288,41 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && selectedClient) {
+      const files = Array.from(e.target.files);
+      setIsUploading(true);
+      
+      try {
+        const newFiles = [...attachedFiles];
+        
+        for (const file of files) {
+          const storageRef = ref(storage, `service_records/${selectedClient}/${Date.now()}_${file.name}`);
+          const uploadTask = await uploadBytes(storageRef, file);
+          const downloadUrl = await getDownloadURL(uploadTask.ref);
+          
+          newFiles.push({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            url: downloadUrl,
+            uploadedAt: new Date().toISOString()
+          });
+        }
+        setAttachedFiles(newFiles);
+      } catch (error) {
+        console.error('Error uploading files:', error);
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -1192,7 +1340,21 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-xl space-y-8">
+      <form onSubmit={handleSubmit} className="bg-[#111827] border border-slate-800 rounded-3xl p-4 sm:p-8 shadow-xl space-y-8">
+        <AnimatePresence>
+          {showSuccess && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex items-center gap-3 text-emerald-500 overflow-hidden"
+            >
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+              <span className="text-sm font-medium">Atendimento registrado com sucesso!</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Selecionar Cliente */}
           <div className="space-y-2">
@@ -1300,6 +1462,58 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
           </div>
         </div>
 
+        {/* Anexos */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-slate-300 ml-1">Anexos (Opcional)</label>
+            <button 
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading || !selectedClient}
+              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isUploading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              Anexar Arquivo
+            </button>
+            <input 
+              type="file" 
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".pdf,image/png,image/jpeg"
+              multiple
+              className="hidden"
+            />
+          </div>
+
+          {attachedFiles.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {attachedFiles.map((file, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 bg-slate-900/50 border border-slate-800 rounded-xl">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    {file.type.includes('image') ? (
+                      <ImageIcon className="w-5 h-5 text-blue-400 shrink-0" />
+                    ) : (
+                      <File className="w-5 h-5 text-orange-400 shrink-0" />
+                    )}
+                    <p className="text-xs text-white truncate">{file.name}</p>
+                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => removeFile(idx)}
+                    className="p-1 text-slate-500 hover:text-red-400 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center justify-end gap-4 pt-4">
           <button 
             type="button"
@@ -1324,6 +1538,93 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
           </button>
         </div>
       </form>
+
+      {/* Histórico de Atendimentos */}
+      {selectedClient && (
+        <div className="mt-12 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-500/20 p-2 rounded-lg">
+              <History className="w-5 h-5 text-emerald-500" />
+            </div>
+            <h3 className="text-xl font-bold text-white">Histórico de Atendimentos</h3>
+          </div>
+
+          <div className="space-y-4">
+            {history.length > 0 ? (
+              history.map((record, index) => (
+                <motion.div
+                  key={record.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-[#111827] border border-slate-800 rounded-2xl p-6 shadow-lg"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-800">
+                    <div className="flex items-center gap-4">
+                      <div className="bg-slate-800 p-2 rounded-lg">
+                        <Calendar className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-white">
+                          {record.date ? record.date.split('-').reverse().join('/') : 'N/A'}
+                        </p>
+                        <p className="text-xs text-slate-500">{record.time || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Profissional</p>
+                        <p className="text-sm font-medium text-emerald-500">{record.professionalName}</p>
+                      </div>
+                      {record.cid && (
+                        <div className="bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                          <span className="text-[10px] font-bold text-emerald-500">CID: {record.cid}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Evolução</p>
+                    <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+                      {record.evolution}
+                    </p>
+                  </div>
+
+                  {record.files && record.files.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-slate-800">
+                      <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Anexos desta sessão</p>
+                      <div className="flex flex-wrap gap-2">
+                        {record.files.map((file: any, fIdx: number) => (
+                          <a
+                            key={fIdx}
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 transition-colors group"
+                          >
+                            {file.type.includes('image') ? (
+                              <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                            ) : (
+                              <File className="w-3.5 h-3.5 text-orange-400" />
+                            )}
+                            <span className="text-xs text-slate-300 group-hover:text-white truncate max-w-[150px]">{file.name}</span>
+                            <Download className="w-3 h-3 text-slate-500 group-hover:text-emerald-500" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              ))
+            ) : (
+              <div className="bg-[#111827] border border-slate-800 border-dashed rounded-2xl p-12 text-center">
+                <History className="w-12 h-12 text-slate-800 mx-auto mb-4" />
+                <p className="text-slate-500">Nenhum atendimento anterior registrado para este paciente.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1777,7 +2078,7 @@ function DashboardView({ setActiveView }: { setActiveView: (view: View) => void 
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Chart Section */}
-        <div className="lg:col-span-2 bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-xl">
+        <div className="lg:col-span-2 bg-[#111827] border border-slate-800 rounded-3xl p-4 sm:p-8 shadow-xl">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               <Activity className="w-5 h-5 text-emerald-500" />
@@ -1824,7 +2125,7 @@ function DashboardView({ setActiveView }: { setActiveView: (view: View) => void 
         </div>
 
         {/* Recent Activity Section */}
-        <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-xl flex flex-col">
+        <div className="bg-[#111827] border border-slate-800 rounded-3xl p-4 sm:p-8 shadow-xl flex flex-col">
           <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-8">
             <History className="w-5 h-5 text-emerald-500" />
             Atividades Recentes
@@ -1845,6 +2146,11 @@ function DashboardView({ setActiveView }: { setActiveView: (view: View) => void 
                     <p className="text-sm font-bold text-white truncate">{activity.clientName || 'Paciente'}</p>
                     <p className="text-xs text-slate-500 mt-0.5">Atendido por {activity.professionalName || 'Profissional'}</p>
                     <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider mt-1">{activity.date}</p>
+                    {activity.evolution && (
+                      <p className="text-[11px] text-slate-400 mt-2 line-clamp-2 italic">
+                        &quot;{activity.evolution}&quot;
+                      </p>
+                    )}
                   </div>
                 </div>
               ))
