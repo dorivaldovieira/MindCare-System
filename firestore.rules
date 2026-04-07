@@ -123,6 +123,7 @@ service cloud.firestore {
     function isValidAttachment(data) {
       return hasRequiredFields(['clientId', 'fileName', 'fileUrl', 'uploadedAt']) &&
              data.clientId is string &&
+             (!('recordId' in data) || data.recordId is string) &&
              data.fileName is string && data.fileName.size() > 0 && data.fileName.size() < 255 &&
              isValidUrl(data.fileUrl) &&
              data.uploadedAt is timestamp;

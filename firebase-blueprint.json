@@ -57,10 +57,11 @@
     },
     "Attachment": {
       "title": "Attachment",
-      "description": "A file attached to a client's record",
+      "description": "A file attached to a client's record or a specific service session",
       "type": "object",
       "properties": {
         "clientId": { "type": "string", "description": "Reference to the client" },
+        "recordId": { "type": "string", "description": "Optional reference to a specific service record" },
         "fileName": { "type": "string", "description": "Name of the file" },
         "fileSize": { "type": "number", "description": "Size of the file in bytes" },
         "fileType": { "type": "string", "description": "MIME type of the file" },
@@ -68,12 +69,25 @@
         "uploadedAt": { "type": "string", "format": "date-time", "description": "Upload timestamp" }
       },
       "required": ["clientId", "fileName", "fileUrl", "uploadedAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A system user profile",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "description": "Email address" },
+        "role": { "type": "string", "enum": ["Administrador", "Profissional"], "description": "User role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["name", "email", "role", "createdAt"]
     }
   },
   "firestore": {
     "clients": { "schema": "Client", "description": "Collection of clients" },
     "professionals": { "schema": "Professional", "description": "Collection of professionals" },
     "service_records": { "schema": "ServiceRecord", "description": "Collection of service records" },
-    "attachments": { "schema": "Attachment", "description": "Collection of file attachments" }
+    "attachments": { "schema": "Attachment", "description": "Collection of file attachments" },
+    "users": { "schema": "User", "description": "Collection of user profiles" }
   }
 }

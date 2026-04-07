@@ -82,6 +82,7 @@ type View = 'dashboard' | 'cadastrar-profissional' | 'cadastrar-cliente' | 'cons
 
 export default function MindCareApp() {
   const [user, setUser] = React.useState<FirebaseUser | null>(null);
+  const [userData, setUserData] = React.useState<any>(null);
   const [isAuthReady, setIsAuthReady] = React.useState(false);
   const [activeView, setActiveView] = React.useState<View>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
@@ -89,8 +90,35 @@ export default function MindCareApp() {
   const [editingClient, setEditingClient] = React.useState<any>(null);
 
   React.useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        // Fetch user profile from Firestore
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            setUserData(userDoc.data());
+          } else {
+            // Create default user profile if it doesn't exist
+            const defaultData = {
+              name: currentUser.displayName || currentUser.email?.split('@')[0] || 'Usuário',
+              email: currentUser.email,
+              role: currentUser.email === 'dorivaldosv32@gmail.com' ? 'Administrador' : 'Profissional',
+              createdAt: serverTimestamp()
+            };
+            await setDoc(doc(db, 'users', currentUser.uid), defaultData);
+            setUserData(defaultData);
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          setUserData({
+            name: currentUser.displayName || currentUser.email?.split('@')[0] || 'Usuário',
+            role: 'Profissional'
+          });
+        }
+      } else {
+        setUserData(null);
+      }
       setIsAuthReady(true);
     });
 
@@ -202,12 +230,12 @@ export default function MindCareApp() {
           ))}
         </nav>
 
-        <div className="p-4 mt-auto border-t border-slate-800">
+        <div className="p-4 mt-auto border-t border-slate-800/50">
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-red-400 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-red-500/10 hover:text-red-400 rounded-xl transition-all duration-200 group"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
             <span className="font-medium text-sm">Sair</span>
           </button>
         </div>
@@ -226,11 +254,11 @@ export default function MindCareApp() {
           
           <div className="flex items-center gap-4 ml-auto">
             <div className="flex flex-col items-end hidden sm:flex">
-              <span className="text-sm font-semibold text-white">Dr. Ricardo Silva</span>
-              <span className="text-xs text-slate-400">Administrador</span>
+              <span className="text-sm font-semibold text-white">{userData?.name || 'Usuário'}</span>
+              <span className="text-xs text-slate-400">{userData?.role || 'Profissional'}</span>
             </div>
-            <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm border-2 border-emerald-500/20">
-              RS
+            <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm border-2 border-emerald-500/20 uppercase">
+              {(userData?.name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
             </div>
           </div>
         </header>
@@ -286,7 +314,7 @@ export default function MindCareApp() {
                   }}
                 />
               )}
-              {activeView === 'ficha-atendimento' && <ServiceRecordView onCancel={() => setActiveView('dashboard')} />}
+              {activeView === 'ficha-atendimento' && <ServiceRecordView userData={userData} onCancel={() => setActiveView('dashboard')} />}
               {activeView !== 'dashboard' && activeView !== 'cadastrar-profissional' && activeView !== 'consultar-profissional' && activeView !== 'cadastrar-cliente' && activeView !== 'consultar-cliente' && activeView !== 'ficha-atendimento' && (
                 <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500">
                   <h2 className="text-2xl font-bold text-slate-300 mb-2">
@@ -329,12 +357,13 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
 
   useEffect(() => {
     if (selectedClient) {
-      const q = query(
+      // Fetch service records
+      const qRecords = query(
         collection(db, 'service_records'),
         where('clientId', '==', selectedClient.id),
         orderBy('date', 'desc')
       );
-      const unsubscribe = onSnapshot(q, (snapshot) => {
+      const unsubRecords = onSnapshot(qRecords, (snapshot) => {
         const historyData = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
@@ -344,19 +373,31 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
         handleFirestoreError(error, OperationType.LIST, 'service_records');
       });
 
-      // Update attached files from the client document
-      // We need to find the latest client data from the 'clients' state or fetch it
-      const currentClient = clients.find(c => c.id === selectedClient.id);
-      if (currentClient) {
-        setAttachedFiles(currentClient.files || []);
-      }
+      // Fetch attachments from separate collection
+      const qAttachments = query(
+        collection(db, 'attachments'),
+        where('clientId', '==', selectedClient.id),
+        orderBy('uploadedAt', 'desc')
+      );
+      const unsubAttachments = onSnapshot(qAttachments, (snapshot) => {
+        const filesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setAttachedFiles(filesData);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'attachments');
+      });
 
-      return () => unsubscribe();
+      return () => {
+        unsubRecords();
+        unsubAttachments();
+      };
     } else {
       setClientHistory([]);
       setAttachedFiles([]);
     }
-  }, [selectedClient, clients]);
+  }, [selectedClient]);
 
   const filteredClients = clients.filter(c => 
     (c.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
@@ -369,31 +410,24 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
       setIsUploading(true);
       
       try {
-        const newFiles = [...attachedFiles];
-        
         for (const file of files) {
           const storageRef = ref(storage, `clients/${selectedClient.id}/${Date.now()}_${file.name}`);
           const uploadTask = await uploadBytes(storageRef, file);
           const downloadUrl = await getDownloadURL(uploadTask.ref);
           
-          newFiles.push({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            url: downloadUrl,
-            uploadedAt: new Date().toISOString()
+          // Add to separate attachments collection
+          await addDoc(collection(db, 'attachments'), {
+            clientId: selectedClient.id,
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type,
+            fileUrl: downloadUrl,
+            uploadedAt: serverTimestamp()
           });
         }
-
-        const clientRef = doc(db, 'clients', selectedClient.id);
-        await updateDoc(clientRef, {
-          files: newFiles,
-          updatedAt: serverTimestamp()
-        });
-        
-        setAttachedFiles(newFiles);
       } catch (error) {
         console.error('Error uploading files:', error);
+        handleFirestoreError(error, OperationType.CREATE, 'attachments');
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -404,16 +438,13 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
   const removeFile = async (index: number) => {
     if (!selectedClient) return;
     
-    const newFiles = attachedFiles.filter((_, i) => i !== index);
+    const fileToRemove = attachedFiles[index];
+    if (!fileToRemove?.id) return;
+
     try {
-      const clientRef = doc(db, 'clients', selectedClient.id);
-      await updateDoc(clientRef, {
-        files: newFiles,
-        updatedAt: serverTimestamp()
-      });
-      setAttachedFiles(newFiles);
+      await deleteDoc(doc(db, 'attachments', fileToRemove.id));
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `clients/${selectedClient.id}`);
+      handleFirestoreError(error, OperationType.DELETE, `attachments/${fileToRemove.id}`);
     }
   };
 
@@ -596,22 +627,22 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
                               {entry.evolution}
                             </p>
 
-                            {entry.files && entry.files.length > 0 && (
+                            {attachedFiles.filter(f => f.recordId === entry.id).length > 0 && (
                               <div className="mt-3 flex flex-wrap gap-2">
-                                {entry.files.map((file: any, fIdx: number) => (
+                                {attachedFiles.filter(f => f.recordId === entry.id).map((file: any, fIdx: number) => (
                                   <a
                                     key={fIdx}
-                                    href={file.url}
+                                    href={file.fileUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 transition-colors group"
                                   >
-                                    {file.type.includes('image') ? (
+                                    {file.fileType?.includes('image') ? (
                                       <ImageIcon className="w-3 h-3 text-blue-400" />
                                     ) : (
                                       <File className="w-3 h-3 text-orange-400" />
                                     )}
-                                    <span className="text-[10px] text-slate-400 group-hover:text-white truncate max-w-[100px]">{file.name}</span>
+                                    <span className="text-[10px] text-slate-400 group-hover:text-white truncate max-w-[100px]">{file.fileName}</span>
                                   </a>
                                 ))}
                               </div>
@@ -661,19 +692,19 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
                           className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800 rounded-2xl group"
                         >
                           <a 
-                            href={file.url}
+                            href={file.fileUrl || file.url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-3 overflow-hidden flex-1"
                           >
-                            {file.type.includes('image') ? (
+                            {(file.fileType || file.type)?.includes('image') ? (
                               <ImageIcon className="w-8 h-8 text-blue-400 shrink-0" />
                             ) : (
                               <File className="w-8 h-8 text-orange-400 shrink-0" />
                             )}
                             <div className="overflow-hidden">
-                              <p className="text-sm font-medium text-white truncate group-hover:text-emerald-500 transition-colors">{file.name}</p>
-                              <p className="text-[10px] text-slate-500 uppercase">{(file.size / 1024).toFixed(1)} KB</p>
+                              <p className="text-sm font-medium text-white truncate group-hover:text-emerald-500 transition-colors">{file.fileName || file.name}</p>
+                              <p className="text-[10px] text-slate-500 uppercase">{( (file.fileSize || file.size) / 1024).toFixed(1)} KB</p>
                             </div>
                           </a>
                           <button 
@@ -1200,13 +1231,14 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
 }
 
 
-function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
+function ServiceRecordView({ userData, onCancel }: { userData: any, onCancel: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState('');
   const [selectedProfessional, setSelectedProfessional] = useState('');
   const [clients, setClients] = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [allAttachments, setAllAttachments] = useState<any[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -1223,13 +1255,22 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
       setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
     const unsubPros = onSnapshot(collection(db, 'professionals'), (snapshot) => {
-      setProfessionals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const pros = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+      setProfessionals(pros);
+      
+      // Auto-select professional if current user matches a professional by email
+      if (userData?.email) {
+        const matchingPro = pros.find((p: any) => p.email?.toLowerCase() === userData.email.toLowerCase());
+        if (matchingPro) {
+          setSelectedProfessional(matchingPro.id);
+        }
+      }
     });
     return () => {
       unsubClients();
       unsubPros();
     };
-  }, []);
+  }, [userData?.email]);
 
   React.useEffect(() => {
     if (!selectedClient) {
@@ -1243,13 +1284,28 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
       orderBy('createdAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubHistory = onSnapshot(q, (snapshot) => {
       setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'service_records');
     });
 
-    return () => unsubscribe();
+    const qAttachments = query(
+      collection(db, 'attachments'),
+      where('clientId', '==', selectedClient),
+      orderBy('uploadedAt', 'desc')
+    );
+
+    const unsubAttachments = onSnapshot(qAttachments, (snapshot) => {
+      setAllAttachments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'attachments');
+    });
+
+    return () => {
+      unsubHistory();
+      unsubAttachments();
+    };
   }, [selectedClient]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1259,15 +1315,28 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
     const professional = professionals.find(p => p.id === selectedProfessional);
 
     try {
-      await addDoc(collection(db, 'service_records'), {
+      const recordRef = await addDoc(collection(db, 'service_records'), {
         clientId: selectedClient,
         clientName: client?.name || 'Unknown',
         professionalId: selectedProfessional,
         professionalName: professional?.name || 'Unknown',
         ...formData,
-        files: attachedFiles,
         createdAt: serverTimestamp(),
       });
+
+      // Save attachments to separate collection linked to this record
+      for (const file of attachedFiles) {
+        await addDoc(collection(db, 'attachments'), {
+          clientId: selectedClient,
+          recordId: recordRef.id,
+          fileName: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+          fileUrl: file.url,
+          uploadedAt: serverTimestamp()
+        });
+      }
+
       // Clear evolution and files but keep client/pro selected
       setFormData(prev => ({
         ...prev,
@@ -1307,8 +1376,7 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
             name: file.name,
             size: file.size,
             type: file.type,
-            url: downloadUrl,
-            uploadedAt: new Date().toISOString()
+            url: downloadUrl
           });
         }
         setAttachedFiles(newFiles);
@@ -1590,24 +1658,24 @@ function ServiceRecordView({ onCancel }: { onCancel: () => void }) {
                     </p>
                   </div>
 
-                  {record.files && record.files.length > 0 && (
+                  {allAttachments.filter(f => f.recordId === record.id).length > 0 && (
                     <div className="mt-4 pt-4 border-t border-slate-800">
                       <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Anexos desta sessão</p>
                       <div className="flex flex-wrap gap-2">
-                        {record.files.map((file: any, fIdx: number) => (
+                        {allAttachments.filter(f => f.recordId === record.id).map((file: any, fIdx: number) => (
                           <a
                             key={fIdx}
-                            href={file.url}
+                            href={file.fileUrl}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 transition-colors group"
                           >
-                            {file.type.includes('image') ? (
+                            {file.fileType?.includes('image') ? (
                               <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
                             ) : (
                               <File className="w-3.5 h-3.5 text-orange-400" />
                             )}
-                            <span className="text-xs text-slate-300 group-hover:text-white truncate max-w-[150px]">{file.name}</span>
+                            <span className="text-xs text-slate-300 group-hover:text-white truncate max-w-[150px]">{file.fileName}</span>
                             <Download className="w-3 h-3 text-slate-500 group-hover:text-emerald-500" />
                           </a>
                         ))}
