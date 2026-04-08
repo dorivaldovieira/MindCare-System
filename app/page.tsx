@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { 
   LayoutDashboard, 
   Stethoscope, 
@@ -42,6 +43,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { auth, db, storage } from '@/firebase';
+import { validateCPF, validateEmail, validateRG, formatCPF, formatPhone } from '@/lib/validation';
 import { 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
@@ -338,6 +340,7 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
   const [clientHistory, setClientHistory] = useState<any[]>([]);
   const [attachedFiles, setAttachedFiles] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'history' | 'documents'>('history');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -592,145 +595,251 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
                   </div>
                 </div>
 
-                {/* Patient History Section */}
-                <div className="space-y-6">
-                  <h4 className="text-lg font-bold text-white flex items-center gap-2">
-                    <History className="w-5 h-5 text-emerald-500" />
-                    Histórico de Atendimentos
-                  </h4>
-                  
-                  <div className="space-y-4">
-                    {clientHistory.length > 0 ? (
-                      clientHistory.map((entry: any, idx: number) => (
-                        <div key={idx} className="relative pl-6 border-l border-slate-800 pb-4 last:pb-0">
-                          <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                          <div className="bg-slate-900/30 rounded-2xl p-4 border border-slate-800/50 hover:border-emerald-500/30 transition-colors">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">{entry.date}</span>
-                                <span className="text-[10px] text-slate-500 font-medium">{entry.professionalName}</span>
-                              </div>
-                              <button 
-                                onClick={async () => {
-                                  try {
-                                    await deleteDoc(doc(db, 'service_records', entry.id));
-                                  } catch (error) {
-                                    handleFirestoreError(error, OperationType.DELETE, `service_records/${entry.id}`);
-                                  }
-                                }}
-                                className="p-1 text-slate-600 hover:text-red-500 transition-colors"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                            <p className="text-sm text-slate-300 leading-relaxed line-clamp-3">
-                              {entry.evolution}
-                            </p>
-
-                            {attachedFiles.filter(f => f.recordId === entry.id).length > 0 && (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {attachedFiles.filter(f => f.recordId === entry.id).map((file: any, fIdx: number) => (
-                                  <a
-                                    key={fIdx}
-                                    href={file.fileUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 transition-colors group"
-                                  >
-                                    {file.fileType?.includes('image') ? (
-                                      <ImageIcon className="w-3 h-3 text-blue-400" />
-                                    ) : (
-                                      <File className="w-3 h-3 text-orange-400" />
-                                    )}
-                                    <span className="text-[10px] text-slate-400 group-hover:text-white truncate max-w-[100px]">{file.fileName}</span>
-                                  </a>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="py-8 text-center bg-slate-900/20 rounded-2xl border border-slate-800/50">
-                        <p className="text-sm text-slate-500 italic">Nenhum histórico de atendimento registrado.</p>
-                      </div>
+                {/* Tabs */}
+                <div className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-2xl border border-slate-800">
+                  <button
+                    onClick={() => setActiveTab('history')}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
+                      activeTab === 'history' 
+                        ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
+                        : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"
                     )}
-                  </div>
+                  >
+                    <History className="w-4 h-4" />
+                    Histórico
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('documents')}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all",
+                      activeTab === 'documents' 
+                        ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" 
+                        : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"
+                    )}
+                  >
+                    <FileText className="w-4 h-4" />
+                    Documentos
+                    {attachedFiles.length > 0 && (
+                      <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[10px] ml-1">
+                        {attachedFiles.length}
+                      </span>
+                    )}
+                  </button>
                 </div>
 
-                {/* File Attachment Section */}
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-lg font-bold text-white flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-emerald-500" />
-                      Anexos e Documentos
-                    </h4>
-                    <button 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-500/20"
+                <AnimatePresence mode="wait">
+                  {activeTab === 'history' ? (
+                    <motion.div
+                      key="history"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-6"
                     >
-                      <Upload className="w-4 h-4" />
-                      Anexar Arquivo
-                    </button>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      accept=".pdf,image/png,image/jpeg"
-                      multiple
-                      className="hidden"
-                    />
-                  </div>
+                      <div className="space-y-4">
+                        {clientHistory.length > 0 ? (
+                          clientHistory.map((entry: any, idx: number) => (
+                            <div key={idx} className="relative pl-6 border-l border-slate-800 pb-4 last:pb-0">
+                              <div className="absolute left-[-5px] top-1.5 w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                              <div className="bg-slate-900/30 rounded-2xl p-4 border border-slate-800/50 hover:border-emerald-500/30 transition-colors">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">{entry.date}</span>
+                                    <span className="text-[10px] text-slate-500 font-medium">{entry.professionalName}</span>
+                                  </div>
+                                  <button 
+                                    onClick={async () => {
+                                      if (confirm('Deseja realmente excluir este registro?')) {
+                                        try {
+                                          await deleteDoc(doc(db, 'service_records', entry.id));
+                                        } catch (error) {
+                                          handleFirestoreError(error, OperationType.DELETE, `service_records/${entry.id}`);
+                                        }
+                                      }
+                                    }}
+                                    className="p-1 text-slate-600 hover:text-red-500 transition-colors"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <p className="text-sm text-slate-300 leading-relaxed line-clamp-3">
+                                  {entry.evolution}
+                                </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {attachedFiles.length > 0 ? (
-                      attachedFiles.map((file, idx) => (
-                        <motion.div 
-                          key={idx}
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800 rounded-2xl group"
-                        >
-                          <a 
-                            href={file.fileUrl || file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 overflow-hidden flex-1"
-                          >
-                            {(file.fileType || file.type)?.includes('image') ? (
-                              <ImageIcon className="w-8 h-8 text-blue-400 shrink-0" />
-                            ) : (
-                              <File className="w-8 h-8 text-orange-400 shrink-0" />
-                            )}
-                            <div className="overflow-hidden">
-                              <p className="text-sm font-medium text-white truncate group-hover:text-emerald-500 transition-colors">{file.fileName || file.name}</p>
-                              <p className="text-[10px] text-slate-500 uppercase">{( (file.fileSize || file.size) / 1024).toFixed(1)} KB</p>
+                                {attachedFiles.filter(f => f.recordId === entry.id).length > 0 && (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {attachedFiles.filter(f => f.recordId === entry.id).map((file: any, fIdx: number) => (
+                                      <a
+                                        key={fIdx}
+                                        href={file.fileUrl || file.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 transition-colors group"
+                                      >
+                                        {file.fileType?.includes('image') ? (
+                                          <div className="w-8 h-8 rounded bg-slate-700 overflow-hidden shrink-0 border border-slate-600 relative">
+                                            <Image 
+                                              src={file.fileUrl || file.url} 
+                                              alt="" 
+                                              fill
+                                              className="object-cover" 
+                                              referrerPolicy="no-referrer"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div className={cn(
+                                            "w-8 h-8 rounded flex items-center justify-center shrink-0",
+                                            file.fileType?.includes('pdf') ? "bg-red-500/20" : "bg-orange-500/20"
+                                          )}>
+                                            {file.fileType?.includes('pdf') ? (
+                                              <FileText className="w-4 h-4 text-red-400" />
+                                            ) : (
+                                              <File className="w-4 h-4 text-orange-400" />
+                                            )}
+                                          </div>
+                                        )}
+                                        <span className="text-[10px] text-slate-400 group-hover:text-white truncate max-w-[100px]">{file.fileName || file.name}</span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </a>
-                          <button 
-                            onClick={() => removeFile(idx)}
-                            className="p-2 text-slate-600 hover:text-red-400 transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </motion.div>
-                      ))
-                    ) : (
-                      <div className="col-span-2 py-12 border-2 border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center text-slate-600">
-                        <Upload className="w-10 h-10 mb-4 opacity-10" />
-                        <p className="text-sm">Nenhum arquivo anexado</p>
-                        <p className="text-xs mt-1 opacity-50">PDF, PNG ou JPEG até 10MB</p>
+                          ))
+                        ) : (
+                          <div className="py-8 text-center bg-slate-900/20 rounded-2xl border border-slate-800/50">
+                            <p className="text-sm text-slate-500 italic">Nenhum histórico de atendimento registrado.</p>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="documents"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-6"
+                    >
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-lg font-bold text-white flex items-center gap-2">
+                          <FileText className="w-5 h-5 text-emerald-500" />
+                          Documentos e Anexos
+                        </h4>
+                        <button 
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading}
+                          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                        >
+                          {isUploading ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4" />
+                          )}
+                          Anexar Arquivo
+                        </button>
+                        <input 
+                          type="file" 
+                          ref={fileInputRef}
+                          onChange={handleFileChange}
+                          accept=".pdf,image/png,image/jpeg"
+                          multiple
+                          className="hidden"
+                        />
+                      </div>
 
-                  {attachedFiles.length > 0 && (
-                    <button className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
-                      <Save className="w-5 h-5" />
-                      Salvar Alterações
-                    </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {attachedFiles.length > 0 ? (
+                          attachedFiles.map((file, idx) => (
+                            <motion.div 
+                              key={idx}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800 rounded-2xl group hover:border-emerald-500/30 transition-all"
+                            >
+                              <div className="flex items-center gap-3 overflow-hidden flex-1">
+                                {(file.fileType || file.type)?.includes('image') ? (
+                                  <div className="w-12 h-12 rounded-xl bg-slate-800 overflow-hidden shrink-0 border border-slate-700 shadow-inner group-hover:border-emerald-500/50 transition-colors relative">
+                                    <Image 
+                                      src={file.fileUrl || file.url} 
+                                      alt={file.fileName || file.name} 
+                                      fill
+                                      className="object-cover"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className={cn(
+                                    "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner transition-colors",
+                                    (file.fileType || file.type)?.includes('pdf') ? "bg-red-500/10 group-hover:bg-red-500/20" : "bg-orange-500/10 group-hover:bg-orange-500/20"
+                                  )}>
+                                    {(file.fileType || file.type)?.includes('pdf') ? (
+                                      <FileText className="w-6 h-6 text-red-400" />
+                                    ) : (
+                                      <File className="w-6 h-6 text-orange-400" />
+                                    )}
+                                  </div>
+                                )}
+                                <div className="overflow-hidden">
+                                  <a 
+                                    href={file.fileUrl || file.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-sm font-medium text-white truncate hover:text-emerald-500 transition-colors block"
+                                  >
+                                    {file.fileName || file.name}
+                                  </a>
+                                  <p className="text-[10px] text-slate-500 uppercase">
+                                    {file.fileSize ? `${(file.fileSize / 1024).toFixed(1)} KB` : 'N/A'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <a 
+                                  href={file.fileUrl || file.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 text-slate-500 hover:text-emerald-500 transition-colors"
+                                  title="Visualizar"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </a>
+                                <a 
+                                  href={file.fileUrl || file.url}
+                                  download={file.fileName || file.name}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 text-slate-500 hover:text-emerald-500 transition-colors"
+                                  title="Baixar"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </a>
+                                <button 
+                                  onClick={() => {
+                                    if (confirm('Deseja excluir este anexo?')) {
+                                      removeFile(idx);
+                                    }
+                                  }}
+                                  className="p-2 text-slate-500 hover:text-red-400 transition-colors"
+                                  title="Excluir"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </motion.div>
+                          ))
+                        ) : (
+                          <div className="col-span-2 py-12 border-2 border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center text-slate-600">
+                            <Upload className="w-10 h-10 mb-4 opacity-10" />
+                            <p className="text-sm">Nenhum arquivo anexado</p>
+                            <p className="text-xs mt-1 opacity-50">PDF, PNG ou JPEG até 10MB</p>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
                   )}
-                </div>
+                </AnimatePresence>
               </motion.div>
             ) : (
               <div className="h-full min-h-[400px] border-2 border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center text-slate-600">
@@ -750,6 +859,7 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
 
 function ClientFormView({ client, onCancel }: { client?: any, onCancel: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     cpf: client?.cpf || '',
     rg: client?.rg || '',
@@ -764,8 +874,33 @@ function ClientFormView({ client, onCancel }: { client?: any, onCancel: () => vo
     status: client?.status || 'Ativo'
   });
 
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.name || formData.name.length < 3) {
+      newErrors.name = 'O nome deve ter pelo menos 3 caracteres.';
+    }
+    
+    if (!validateCPF(formData.cpf)) {
+      newErrors.cpf = 'CPF inválido.';
+    }
+    
+    if (!validateRG(formData.rg)) {
+      newErrors.rg = 'RG inválido (mínimo 7 dígitos).';
+    }
+    
+    if (formData.phone && formData.phone.length < 14) {
+      newErrors.phone = 'Telefone inválido.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validate()) return;
+    
     setIsLoading(true);
     try {
       if (client?.id) {
@@ -818,7 +953,10 @@ function ClientFormView({ client, onCancel }: { client?: any, onCancel: () => vo
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300 ml-1">CPF</label>
             <div className="relative group">
-              <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <CreditCard className={cn(
+                "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors",
+                errors.cpf ? "text-red-500" : "text-slate-500 group-focus-within:text-emerald-500"
+              )} />
               <input 
                 type="text" 
                 name="cpf"
@@ -826,16 +964,25 @@ function ClientFormView({ client, onCancel }: { client?: any, onCancel: () => vo
                 onChange={handleChange}
                 required
                 placeholder="000.000.000-00"
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className={cn(
+                  "w-full bg-slate-900/50 border rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all",
+                  errors.cpf 
+                    ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500" 
+                    : "border-slate-800 focus:ring-emerald-500/20 focus:border-emerald-500"
+                )}
               />
             </div>
+            {errors.cpf && <p className="text-xs text-red-500 ml-1">{errors.cpf}</p>}
           </div>
 
           {/* RG */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300 ml-1">RG</label>
             <div className="relative group">
-              <Fingerprint className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <Fingerprint className={cn(
+                "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors",
+                errors.rg ? "text-red-500" : "text-slate-500 group-focus-within:text-emerald-500"
+              )} />
               <input 
                 type="text" 
                 name="rg"
@@ -843,9 +990,15 @@ function ClientFormView({ client, onCancel }: { client?: any, onCancel: () => vo
                 onChange={handleChange}
                 required
                 placeholder="00.000.000-0"
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className={cn(
+                  "w-full bg-slate-900/50 border rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all",
+                  errors.rg 
+                    ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500" 
+                    : "border-slate-800 focus:ring-emerald-500/20 focus:border-emerald-500"
+                )}
               />
             </div>
+            {errors.rg && <p className="text-xs text-red-500 ml-1">{errors.rg}</p>}
           </div>
         </div>
 
@@ -853,7 +1006,10 @@ function ClientFormView({ client, onCancel }: { client?: any, onCancel: () => vo
         <div className="space-y-2">
           <label className="text-sm font-medium text-slate-300 ml-1">Nome Completo</label>
           <div className="relative group">
-            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+            <User className={cn(
+              "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors",
+              errors.name ? "text-red-500" : "text-slate-500 group-focus-within:text-emerald-500"
+            )} />
             <input 
               type="text" 
               name="name"
@@ -861,9 +1017,15 @@ function ClientFormView({ client, onCancel }: { client?: any, onCancel: () => vo
               onChange={handleChange}
               required
               placeholder="Digite o nome completo do cliente"
-              className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+              className={cn(
+                "w-full bg-slate-900/50 border rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all",
+                errors.name 
+                  ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500" 
+                  : "border-slate-800 focus:ring-emerald-500/20 focus:border-emerald-500"
+              )}
             />
           </div>
+          {errors.name && <p className="text-xs text-red-500 ml-1">{errors.name}</p>}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1016,6 +1178,7 @@ function ClientFormView({ client, onCancel }: { client?: any, onCancel: () => vo
 
 function ProfessionalFormView({ professional, onCancel }: { professional?: any, onCancel: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     cpf: professional?.cpf || '',
     registerNumber: professional?.registerNumber || '',
@@ -1026,8 +1189,37 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
     phone: professional?.phone || '',
   });
 
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!formData.name || formData.name.length < 3) {
+      newErrors.name = 'O nome deve ter pelo menos 3 caracteres.';
+    }
+    
+    if (!validateCPF(formData.cpf)) {
+      newErrors.cpf = 'CPF inválido.';
+    }
+    
+    if (!validateEmail(formData.email)) {
+      newErrors.email = 'E-mail inválido.';
+    }
+    
+    if (!formData.specialty) {
+      newErrors.specialty = 'A especialidade é obrigatória.';
+    }
+    
+    if (formData.phone && formData.phone.length < 14) {
+      newErrors.phone = 'Telefone inválido.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validate()) return;
+    
     setIsLoading(true);
     try {
       if (professional?.id) {
@@ -1052,7 +1244,20 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    let formattedValue = value;
+
+    if (name === 'cpf') formattedValue = formatCPF(value);
+    if (name === 'phone') formattedValue = formatPhone(value);
+
+    setFormData(prev => ({ ...prev, [name]: formattedValue }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
   };
 
   return (
@@ -1080,7 +1285,10 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300 ml-1">CPF</label>
             <div className="relative group">
-              <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <CreditCard className={cn(
+                "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors",
+                errors.cpf ? "text-red-500" : "text-slate-500 group-focus-within:text-emerald-500"
+              )} />
               <input 
                 type="text" 
                 name="cpf"
@@ -1088,9 +1296,15 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
                 onChange={handleChange}
                 required
                 placeholder="000.000.000-00"
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className={cn(
+                  "w-full bg-slate-900/50 border rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all",
+                  errors.cpf 
+                    ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500" 
+                    : "border-slate-800 focus:ring-emerald-500/20 focus:border-emerald-500"
+                )}
               />
             </div>
+            {errors.cpf && <p className="text-xs text-red-500 ml-1">{errors.cpf}</p>}
           </div>
 
           {/* Registro (CRP/CRM) */}
@@ -1116,7 +1330,10 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300 ml-1">Nome Completo</label>
             <div className="relative group">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <User className={cn(
+                "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors",
+                errors.name ? "text-red-500" : "text-slate-500 group-focus-within:text-emerald-500"
+              )} />
               <input 
                 type="text" 
                 name="name"
@@ -1124,16 +1341,25 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
                 onChange={handleChange}
                 required
                 placeholder="Digite o nome completo"
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className={cn(
+                  "w-full bg-slate-900/50 border rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all",
+                  errors.name 
+                    ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500" 
+                    : "border-slate-800 focus:ring-emerald-500/20 focus:border-emerald-500"
+                )}
               />
             </div>
+            {errors.name && <p className="text-xs text-red-500 ml-1">{errors.name}</p>}
           </div>
 
           {/* Especialidade */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300 ml-1">Especialidade</label>
             <div className="relative group">
-              <Stethoscope className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <Stethoscope className={cn(
+                "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors",
+                errors.specialty ? "text-red-500" : "text-slate-500 group-focus-within:text-emerald-500"
+              )} />
               <input 
                 type="text" 
                 name="specialty"
@@ -1141,9 +1367,15 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
                 onChange={handleChange}
                 required
                 placeholder="Ex: Psicólogo Clínico"
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className={cn(
+                  "w-full bg-slate-900/50 border rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all",
+                  errors.specialty 
+                    ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500" 
+                    : "border-slate-800 focus:ring-emerald-500/20 focus:border-emerald-500"
+                )}
               />
             </div>
+            {errors.specialty && <p className="text-xs text-red-500 ml-1">{errors.specialty}</p>}
           </div>
         </div>
 
@@ -1152,7 +1384,10 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300 ml-1">E-mail</label>
             <div className="relative group">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <Mail className={cn(
+                "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors",
+                errors.email ? "text-red-500" : "text-slate-500 group-focus-within:text-emerald-500"
+              )} />
               <input 
                 type="email" 
                 name="email"
@@ -1160,9 +1395,15 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
                 onChange={handleChange}
                 required
                 placeholder="profissional@email.com"
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className={cn(
+                  "w-full bg-slate-900/50 border rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all",
+                  errors.email 
+                    ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500" 
+                    : "border-slate-800 focus:ring-emerald-500/20 focus:border-emerald-500"
+                )}
               />
             </div>
+            {errors.email && <p className="text-xs text-red-500 ml-1">{errors.email}</p>}
           </div>
         </div>
 
@@ -1188,7 +1429,10 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-300 ml-1">Telefone</label>
             <div className="relative group">
-              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <Phone className={cn(
+                "absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors",
+                errors.phone ? "text-red-500" : "text-slate-500 group-focus-within:text-emerald-500"
+              )} />
               <input 
                 type="tel" 
                 name="phone"
@@ -1196,9 +1440,15 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
                 onChange={handleChange}
                 required
                 placeholder="(00) 00000-0000"
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className={cn(
+                  "w-full bg-slate-900/50 border rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition-all",
+                  errors.phone 
+                    ? "border-red-500/50 focus:ring-red-500/20 focus:border-red-500" 
+                    : "border-slate-800 focus:ring-emerald-500/20 focus:border-emerald-500"
+                )}
               />
             </div>
+            {errors.phone && <p className="text-xs text-red-500 ml-1">{errors.phone}</p>}
           </div>
         </div>
 
@@ -1240,9 +1490,6 @@ function ServiceRecordView({ userData, onCancel }: { userData: any, onCancel: ()
   const [history, setHistory] = useState<any[]>([]);
   const [allAttachments, setAllAttachments] = useState<any[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState<any[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -1324,27 +1571,13 @@ function ServiceRecordView({ userData, onCancel }: { userData: any, onCancel: ()
         createdAt: serverTimestamp(),
       });
 
-      // Save attachments to separate collection linked to this record
-      for (const file of attachedFiles) {
-        await addDoc(collection(db, 'attachments'), {
-          clientId: selectedClient,
-          recordId: recordRef.id,
-          fileName: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-          fileUrl: file.url,
-          uploadedAt: serverTimestamp()
-        });
-      }
-
-      // Clear evolution and files but keep client/pro selected
+      // Clear evolution but keep client/pro selected
       setFormData(prev => ({
         ...prev,
         evolution: '',
         date: new Date().toISOString().split('T')[0],
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }));
-      setAttachedFiles([]);
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
@@ -1357,40 +1590,6 @@ function ServiceRecordView({ userData, onCancel }: { userData: any, onCancel: ()
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && selectedClient) {
-      const files = Array.from(e.target.files);
-      setIsUploading(true);
-      
-      try {
-        const newFiles = [...attachedFiles];
-        
-        for (const file of files) {
-          const storageRef = ref(storage, `service_records/${selectedClient}/${Date.now()}_${file.name}`);
-          const uploadTask = await uploadBytes(storageRef, file);
-          const downloadUrl = await getDownloadURL(uploadTask.ref);
-          
-          newFiles.push({
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            url: downloadUrl
-          });
-        }
-        setAttachedFiles(newFiles);
-      } catch (error) {
-        console.error('Error uploading files:', error);
-      } finally {
-        setIsUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  const removeFile = (index: number) => {
-    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -1531,57 +1730,6 @@ function ServiceRecordView({ userData, onCancel }: { userData: any, onCancel: ()
         </div>
 
         {/* Anexos */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-slate-300 ml-1">Anexos (Opcional)</label>
-            <button 
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading || !selectedClient}
-              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isUploading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Upload className="w-4 h-4" />
-              )}
-              Anexar Arquivo
-            </button>
-            <input 
-              type="file" 
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".pdf,image/png,image/jpeg"
-              multiple
-              className="hidden"
-            />
-          </div>
-
-          {attachedFiles.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {attachedFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-slate-900/50 border border-slate-800 rounded-xl">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    {file.type.includes('image') ? (
-                      <ImageIcon className="w-5 h-5 text-blue-400 shrink-0" />
-                    ) : (
-                      <File className="w-5 h-5 text-orange-400 shrink-0" />
-                    )}
-                    <p className="text-xs text-white truncate">{file.name}</p>
-                  </div>
-                  <button 
-                    type="button"
-                    onClick={() => removeFile(idx)}
-                    className="p-1 text-slate-500 hover:text-red-400 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         <div className="flex items-center justify-end gap-4 pt-4">
           <button 
             type="button"
@@ -1727,97 +1875,99 @@ function LoginView() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#0F172A] flex flex-col p-8 lg:p-16 relative overflow-hidden">
       {/* Abstract background elements */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/5 rounded-full blur-[120px]" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md"
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="w-full max-w-lg relative z-10"
       >
-        <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10">
-          <div className="flex flex-col items-center mb-8">
-            <div className="bg-emerald-500/20 p-4 rounded-2xl mb-4">
-              <Activity className="w-10 h-10 text-emerald-500" />
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-8">
+            <Activity className="w-8 h-8 text-emerald-500" />
+          </div>
+          <h1 className="text-5xl font-bold text-white tracking-tight mb-4">MindCare</h1>
+          <p className="text-xl text-slate-400">Acesse sua conta para continuar</p>
+        </div>
+
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-500 text-sm"
+          >
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            {error}
+          </motion.div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider ml-1">E-mail</label>
+            <div className="relative group">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <input 
+                type="email" 
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-lg"
+              />
             </div>
-            <h1 className="text-3xl font-bold text-white tracking-tight">MindCare</h1>
-            <p className="text-slate-400 mt-2">Acesse sua conta para continuar</p>
           </div>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-500 text-sm">
-              <AlertCircle className="w-5 h-5 shrink-0" />
-              {error}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between ml-1">
+              <label className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Senha</label>
+              <button type="button" className="text-xs text-emerald-500 hover:text-emerald-400 font-bold tracking-wide">Esqueceu a senha?</button>
             </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300 ml-1">E-mail</label>
-              <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
-                <input 
-                  type="email" 
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
-                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                />
-              </div>
+            <div className="relative group">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
+              <input 
+                type={showPassword ? "text" : "password"} 
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-12 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-lg"
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
+              </button>
             </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between ml-1">
-                <label className="text-sm font-medium text-slate-300">Senha</label>
-                <button type="button" className="text-xs text-emerald-500 hover:text-emerald-400 font-medium">Esqueceu a senha?</button>
-              </div>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-emerald-500 transition-colors" />
-                <input 
-                  type={showPassword ? "text" : "password"} 
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-3 pl-12 pr-12 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            <button 
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-4 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  Entrar no Sistema
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-8 pt-6 border-t border-slate-800 text-center">
-            <p className="text-slate-500 text-sm">
-              Não tem uma conta? <button className="text-emerald-500 font-semibold hover:text-emerald-400">Solicite acesso</button>
-            </p>
           </div>
+
+          <button 
+            type="submit"
+            disabled={isLoading}
+            className="w-full sm:w-auto min-w-[240px] bg-emerald-500 hover:bg-emerald-400 text-[#0F172A] font-black py-5 px-8 rounded-2xl shadow-2xl shadow-emerald-500/20 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed text-lg uppercase tracking-tighter"
+          >
+            {isLoading ? (
+              <div className="w-6 h-6 border-3 border-[#0F172A]/30 border-t-[#0F172A] rounded-full animate-spin" />
+            ) : (
+              <>
+                Entrar no Sistema
+                <ArrowRight className="w-6 h-6" />
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="mt-16 pt-8 border-t border-slate-800/50">
+          <p className="text-slate-400 text-base">
+            Não tem uma conta? <button className="text-emerald-500 font-bold hover:text-emerald-400 transition-colors">Solicite acesso</button>
+          </p>
         </div>
         
-        <p className="text-center text-slate-600 text-xs mt-8">
+        <p className="text-slate-600 text-xs mt-12 font-medium">
           &copy; 2026 MindCare Health Systems. Todos os direitos reservados.
         </p>
       </motion.div>

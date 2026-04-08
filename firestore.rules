@@ -70,8 +70,12 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrador' ||
           request.auth.token.email == "dorivaldosv32@gmail.com");
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
     function hasRequiredFields(fields) {
@@ -94,11 +98,19 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
 
+    function isValidUser(data) {
+      return hasRequiredFields(['name', 'email', 'role', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 &&
+             isValidEmail(data.email) &&
+             data.role in ['Administrador', 'Profissional'] &&
+             data.createdAt != null;
+    }
+
     function isValidClient(data) {
       return hasRequiredFields(['cpf', 'name', 'createdAt']) &&
              data.cpf is string && data.cpf.size() >= 11 && data.cpf.size() <= 14 &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.createdAt is timestamp;
+             data.createdAt != null;
     }
 
     function isValidProfessional(data) {
@@ -108,7 +120,7 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.specialty is string && data.specialty.size() > 0 &&
              isValidEmail(data.email) &&
-             data.createdAt is timestamp;
+             data.createdAt != null;
     }
 
     function isValidServiceRecord(data) {
@@ -117,7 +129,7 @@ service cloud.firestore {
              data.professionalId is string && data.professionalName is string &&
              data.date is string && data.time is string &&
              data.evolution is string && data.evolution.size() > 0 && data.evolution.size() < 10000 &&
-             data.createdAt is timestamp;
+             data.createdAt != null;
     }
 
     function isValidAttachment(data) {
@@ -126,7 +138,7 @@ service cloud.firestore {
              (!('recordId' in data) || data.recordId is string) &&
              data.fileName is string && data.fileName.size() > 0 && data.fileName.size() < 255 &&
              isValidUrl(data.fileUrl) &&
-             data.uploadedAt is timestamp;
+             data.uploadedAt != null;
     }
 
     // ===============================================================
@@ -134,8 +146,11 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId && !request.resource.data.keys().contains('role'));
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && 
+                    (request.resource.data.role == 'Profissional' || request.auth.token.email == "dorivaldosv32@gmail.com");
+      allow update: if isAuthenticated() && (isAdmin() || (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role));
+      allow delete: if isAdmin();
     }
 
     match /clients/{clientId} {
