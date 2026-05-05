@@ -1875,21 +1875,21 @@ function LoginView() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex flex-col p-8 lg:p-16 relative overflow-hidden">
+    <div className="min-h-screen bg-[#0F172A] flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden">
       {/* Abstract background elements */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-500/5 rounded-full blur-[120px]" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
 
       <motion.div 
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-lg relative z-10"
       >
-        <div className="mb-12">
-          <div className="flex items-center gap-3 mb-8">
-            <Activity className="w-8 h-8 text-emerald-500" />
+        <div className="mb-12 text-center">
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <Activity className="w-12 h-12 text-emerald-500" />
           </div>
-          <h1 className="text-5xl font-bold text-white tracking-tight mb-4">MindCare</h1>
+          <h1 className="text-6xl font-bold text-white tracking-tight mb-4">MindCare</h1>
           <p className="text-xl text-slate-400">Acesse sua conta para continuar</p>
         </div>
 
