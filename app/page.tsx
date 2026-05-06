@@ -2225,7 +2225,6 @@ function DashboardView({ setActiveView }: { setActiveView: (view: View) => void 
     { label: 'Pacientes Ativos', value: '0', color: 'bg-blue-500', collection: 'clients' },
     { label: 'Consultas Hoje', value: '0', color: 'bg-emerald-500', collection: 'service_records' },
     { label: 'Profissionais', value: '0', color: 'bg-purple-500', collection: 'professionals' },
-    { label: 'Pendências', value: '0', color: 'bg-orange-500', collection: 'none' },
   ], []);
 
   const [stats, setStats] = React.useState(initialStats);
@@ -2306,7 +2305,7 @@ function DashboardView({ setActiveView }: { setActiveView: (view: View) => void 
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {stats.map((stat, index) => (
           <motion.div
             key={stat.label}
@@ -2322,7 +2321,6 @@ function DashboardView({ setActiveView }: { setActiveView: (view: View) => void 
                 {index === 0 && <Users className="w-6 h-6" />}
                 {index === 1 && <Calendar className="w-6 h-6" />}
                 {index === 2 && <Stethoscope className="w-6 h-6" />}
-                {index === 3 && <Clock className="w-6 h-6" />}
               </div>
             </div>
             <div className={cn("h-1.5 w-12 mt-6 rounded-full", stat.color)} />
