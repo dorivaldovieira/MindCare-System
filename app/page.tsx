@@ -68,7 +68,7 @@ import {
   runTransaction,
   getDocFromServer
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { 
   BarChart, 
   Bar, 
@@ -414,7 +414,8 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
       
       try {
         for (const file of files) {
-          const storageRef = ref(storage, `clients/${selectedClient.id}/${Date.now()}_${file.name}`);
+          const storagePath = `clients/${selectedClient.id}/${Date.now()}_${file.name}`;
+          const storageRef = ref(storage, storagePath);
           const uploadTask = await uploadBytes(storageRef, file);
           const downloadUrl = await getDownloadURL(uploadTask.ref);
           
@@ -425,6 +426,7 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
             fileSize: file.size,
             fileType: file.type,
             fileUrl: downloadUrl,
+            storagePath: storagePath,
             uploadedAt: serverTimestamp()
           });
         }
@@ -444,7 +446,21 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
     const fileToRemove = attachedFiles[index];
     if (!fileToRemove?.id) return;
 
+    if (!confirm('Deseja excluir este anexo permanentemente?')) return;
+
     try {
+      // 1. Delete from Storage if storagePath exists
+      if (fileToRemove.storagePath) {
+        try {
+          const storageRef = ref(storage, fileToRemove.storagePath);
+          await deleteObject(storageRef);
+        } catch (storageErr) {
+          console.error("Error deleting from storage:", storageErr);
+          // Continue with Firestore deletion even if storage deletion fails (e.g. file already gone)
+        }
+      }
+
+      // 2. Delete from Firestore
       await deleteDoc(doc(db, 'attachments', fileToRemove.id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `attachments/${fileToRemove.id}`);
@@ -816,11 +832,7 @@ function ClientSearchView({ onCancel, onEdit }: { onCancel: () => void, onEdit: 
                                   <Download className="w-4 h-4" />
                                 </a>
                                 <button 
-                                  onClick={() => {
-                                    if (confirm('Deseja excluir este anexo?')) {
-                                      removeFile(idx);
-                                    }
-                                  }}
+                                  onClick={() => removeFile(idx)}
                                   className="p-2 text-slate-500 hover:text-red-400 transition-colors"
                                   title="Excluir"
                                 >
