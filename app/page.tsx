@@ -1242,6 +1242,21 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
     }
   };
 
+  const handleDelete = async () => {
+    if (!professional?.id) return;
+    if (!confirm('Tem certeza que deseja excluir este profissional? Esta ação não pode ser desfeita.')) return;
+    
+    setIsLoading(true);
+    try {
+      await deleteDoc(doc(db, 'professionals', professional.id));
+      onCancel();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `professionals/${professional.id}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     let formattedValue = value;
@@ -1453,6 +1468,17 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
         </div>
 
         <div className="flex items-center justify-end gap-4 pt-4">
+          {professional?.id && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isLoading}
+              className="mr-auto px-6 py-3 text-red-500 hover:text-red-400 font-medium transition-colors flex items-center gap-2 hover:bg-red-500/10 rounded-xl disabled:opacity-50"
+            >
+              <Trash2 className="w-5 h-5" />
+              Excluir Profissional
+            </button>
+          )}
           <button 
             type="button"
             onClick={onCancel}
