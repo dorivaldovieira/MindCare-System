@@ -1244,13 +1244,18 @@ function ProfessionalFormView({ professional, onCancel }: { professional?: any, 
 
   const handleDelete = async () => {
     if (!professional?.id) return;
-    if (!confirm('Tem certeza que deseja excluir este profissional? Esta ação não pode ser desfeita.')) return;
+    
+    // Using a more robust confirmation that also provides immediate feedback
+    const confirmed = window.confirm('Tem certeza que deseja excluir este profissional? Esta ação não pode ser desfeita.');
+    if (!confirmed) return;
     
     setIsLoading(true);
     try {
       await deleteDoc(doc(db, 'professionals', professional.id));
+      alert('Profissional excluído com sucesso!');
       onCancel();
     } catch (error) {
+      console.error("Delete professional error:", error);
       handleFirestoreError(error, OperationType.DELETE, `professionals/${professional.id}`);
     } finally {
       setIsLoading(false);
@@ -2038,7 +2043,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
         providerId: provider.providerId,
         displayName: provider.displayName,
         email: provider.email,
@@ -2049,6 +2054,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   }
   console.error('Firestore Error: ', JSON.stringify(errInfo));
+  alert(`Erro ao realizar operação (${operationType}): ${errInfo.error}`);
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -2121,9 +2127,13 @@ function ProfessionalSearchView({ onCancel, onEdit }: { onCancel: () => void, on
   );
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este profissional? Esta ação não pode ser desfeita.')) return;
+    
     try {
       await deleteDoc(doc(db, 'professionals', id));
+      alert('Profissional excluído com sucesso!');
     } catch (error) {
+      console.error("Delete professional error:", error);
       handleFirestoreError(error, OperationType.DELETE, `professionals/${id}`);
     }
   };
